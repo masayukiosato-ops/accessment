@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アセスメント支援ツール（AIレビュー版）</title>
+<style>
+  :root {
+    --bg: #FAFAF7;
+    --panel: #FFFFFF;
+    --border: #E2E1DA;
+    --text: #2B2B27;
+    --text-muted: #6B6A62;
+    --accent: #0F6E56;
+    --accent-light: #E1F5EE;
+    --accent-dark: #085041;
+    --danger: #B4402E;
+    --danger-light: #FAECE7;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    line-height: 1.7;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 22px; font-weight: 500; margin: 0 0 6px; }
+  .subtitle { color: var(--text-muted); font-size: 14px; margin: 0 0 24px; }
+  .notice {
+    background: var(--danger-light);
+    border: 1px solid #EBCFC5;
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--danger);
+    margin-bottom: 28px;
+  }
+  section.panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  h2 { font-size: 16px; font-weight: 500; margin: 0 0 16px; }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin: 16px 0 6px;
+  }
+  label:first-of-type { margin-top: 0; }
+  select, textarea, input[type=text], input[type=password] {
+    width: 100%;
+    font-family: inherit;
+    font-size: 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+  }
+  textarea { resize: vertical; min-height: 70px; }
+  textarea#student-draft { min-height: 160px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 220px; }
+  .hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .checkbox-line { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--text-muted); }
+  .checkbox-line input { width: auto; }
+  button#analyze-btn {
+    margin-top: 20px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  button#analyze-btn:disabled { opacity: 0.6; cursor: default; }
+  button#analyze-btn:hover:not(:disabled) { background: var(--accent-dark); }
+  #error-box {
+    display: none;
+    background: var(--danger-light);
+    border: 1px solid #EBCFC5;
+    color: var(--danger);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    font-size: 13px;
+    margin-bottom: 20px;
+    white-space: pre-wrap;
+  }
+  #result-section { display: none; }
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 640px) { .compare-grid { grid-template-columns: 1fr; } }
+  .compare-col {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    background: var(--bg);
+  }
+  .compare-col h3 { font-size: 14px; font-weight: 500; margin: 0 0 12px; color: var(--text-muted); }
+  .compare-col .field { margin-bottom: 14px; }
+  .compare-col .field:last-child { margin-bottom: 0; }
+  .field .flabel { font-size: 12px; font-weight: 500; color: var(--accent-dark); margin-bottom: 3px; }
+  .field .fval { font-size: 13.5px; white-space: pre-wrap; }
+  .student-raw { white-space: pre-wrap; font-size: 13.5px; }
+  .badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--accent-light);
+    color: var(--accent-dark);
+  }
+  #feedback-box {
+    margin-top: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    background: var(--accent-light);
+  }
+  #feedback-box h3 { font-size: 14px; font-weight: 500; margin: 0 0 10px; color: var(--accent-dark); }
+  #feedback-box .fval { font-size: 13.5px; white-space: pre-wrap; }
+  .loading { font-size: 13px; color: var(--text-muted); margin-top: 12px; display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>アセスメント支援ツール（AIレビュー版）</h1>
+  <p class="subtitle">ヘンダーソン14の基本的欲求 ／ 4ステップ思考の枠組みでAIがレビューします</p>
+
+  <div class="notice">
+    このツールは外部のAI APIに入力内容を送信します。実在の患者を特定できる情報は入力せず、演習用の仮想事例（例：A氏）のみを入力してください。
+  </div>
+
+  <section class="panel">
+    <h2>1．情報を入力する</h2>
+
+    <label for="need-select">基本的欲求</label>
+    <select id="need-select"></select>
+
+    <div class="row">
+      <div>
+        <label for="s-info">S情報（本人の言葉・訴え）</label>
+        <textarea id="s-info" placeholder="例：「階段を上ると少し息が切れる」"></textarea>
+      </div>
+      <div>
+        <label for="o-info">O情報（観察・検査データ等）</label>
+        <textarea id="o-info" placeholder="例：呼吸数18回/分、SpO2 96%"></textarea>
+      </div>
+    </div>
+
+    <label for="student-draft">あなたの記入（①現状の要約〜④結論、自由形式でOK）</label>
+    <textarea id="student-draft" placeholder="①現状の要約&#10;&#10;②要因分析（体力・意志力・知識・環境）&#10;&#10;③強みとリスク&#10;&#10;④結論"></textarea>
+    <p class="hint">まず自分の力で書いてから分析してください。何も書かずに送るとAIのモデル分析のみが表示されます。</p>
+  </section>
+
+  <section class="panel">
+    <h2>2．AIに分析してもらう</h2>
+    <button id="analyze-btn">AIに分析してもらう</button>
+    <p class="loading" id="loading-text">AIが分析中です…</p>
+  </section>
+
+  <div id="error-box"></div>
+
+  <section class="panel" id="result-section">
+    <h2>3．結果の比較</h2>
+    <div class="compare-grid">
+      <div class="compare-col">
+        <h3>あなたの記入</h3>
+        <div class="student-raw" id="student-display"></div>
+      </div>
+      <div class="compare-col">
+        <h3>AIによるモデル分析 <span class="badge" id="handan-badge"></span></h3>
+        <div class="field"><div class="flabel">①現状の要約</div><div class="fval" id="ai-genjou"></div></div>
+        <div class="field"><div class="flabel">②体力・身体機能面</div><div class="fval" id="ai-tairyoku"></div></div>
+        <div class="field"><div class="flabel">②意志力・意欲・認識面</div><div class="fval" id="ai-ishiryoku"></div></div>
+        <div class="field"><div class="flabel">②知識・技術・理解面</div><div class="fval" id="ai-chishiki"></div></div>
+        <div class="field"><div class="flabel">②環境・サポート面</div><div class="fval" id="ai-kankyo"></div></div>
+        <div class="field"><div class="flabel">③強み</div><div class="fval" id="ai-tsuyomi"></div></div>
+        <div class="field"><div class="flabel">③リスク</div><div class="fval" id="ai-risuku"></div></div>
+        <div class="field"><div class="flabel">④結論</div><div class="fval" id="ai-ketsuron"></div></div>
+      </div>
+    </div>
+    <div id="feedback-box">
+      <h3>AIからのフィードバック（あなたの記入について）</h3>
+      <div class="fval" id="ai-feedback"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const NEEDS = [
+  "正常に呼吸する",
+  "適切に飲食する",
+  "あらゆる排泄経路から排泄する",
+  "身体の位置を動かし、また良い姿勢を保持する",
+  "睡眠と休息をとる（ストレスのコントロールを含む）",
+  "適切な衣類を選び、着脱する",
+  "体温を生理的範囲内に維持する",
+  "身体を清潔に保ち、皮膚を保護する",
+  "環境の危険因子を避け、また他人を傷害しないようにする",
+  "自分の感情、欲求、恐怖あるいは気分を表現して他者とコミュニケーションをもつ",
+  "自分の信仰に従って礼拝する",
+  "達成感をもたらすような仕事をする",
+  "遊び、あるいは種々のレクリエーションに参加する",
+  "学習し、発見をし、好奇心を満足させる",
+];
+
+const needSelect = document.getElementById("need-select");
+NEEDS.forEach((n, i) => {
+  const opt = document.createElement("option");
+  opt.value = n;
+  opt.textContent = `${i + 1}．${n}`;
+  needSelect.appendChild(opt);
+});
+
+// AIはGemini固定。モデル名とAPIキーはこのファイル内に直接埋め込んである。
+// 注意：このファイルの中身は誰でも「ページのソースを表示」すれば読めるため、
+// APIキーはリンクを渡した相手（学生）には実質公開されているのと同じ状態になる。
+const GEMINI_MODEL = "gemini-3.6-flash";
+const GEMINI_API_KEY = "AQ.Ab8RN6LG8_CAKokLs5bX6RrFtr1GyjnT8Jdc159NcJlCQm0BjA";
+
+function buildPrompt(need, sInfo, oInfo, draft) {
+  return `あなたは看護教育を支援するアセスメント指導者です。以下のヘンダーソン14の基本的欲求のうち1項目について、S/O情報をもとに4ステップの思考でモデルとなるアセスメントを作成し、さらに学生の記入内容にフィードバックしてください。
+
+【思考ステップ】
+①現状の状態（S・Oデータの統合と要約）
+②なぜその状態になっているか（体力・身体機能面／意志力・意欲・認識面／知識・技術・理解面／環境・サポート面の4つの視点で分析）
+③今後の予測（強み・リスク）
+④結論と看護の方向性（状態の判断：充足／未充足（問題あり）／潜在的未充足（リスクあり）、および次の文章の型を用いた結論）
+文章の型：「対象者は現在＜①の状態＞であり、＜②の要因＞によって＜③のリスク＞が生じるおそれがある。そのため、＜④看護の方向性・必要な援助＞が必要である。」
+
+【基本的欲求】${need}
+【S情報】${sInfo || "（未記入）"}
+【O情報】${oInfo || "（未記入）"}
+【学生の記入】${draft || "（未記入）"}
+
+必ず次のJSON形式のみで、前置きや説明、コードブロックの記号なしで回答してください。
+{
+  "genjou": "①現状の要約",
+  "youin": {
+    "tairyoku": "体力・身体機能面の分析",
+    "ishiryoku": "意志力・意欲・認識面の分析",
+    "chishiki": "知識・技術・理解面の分析",
+    "kankyo": "環境・サポート面の分析"
+  },
+  "tsuyomi": "③強み",
+  "risuku": "③リスク",
+  "handan": "充足 または 未充足（問題あり） または 潜在的未充足（リスクあり）",
+  "ketsuron": "④結論（文章の型に沿った文章）",
+  "feedback": "学生の記入に対する良い点と不足点のコメント。学生の記入が未記入の場合は「記入がなかったため、まずは自分で書いてみましょう」という趣旨のコメントにする。"
+}`;
+}
+
+async function callGemini(apiKey, model, prompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error((data.error && data.error.message) || "Gemini APIエラー");
+  const cand = data.candidates && data.candidates[0];
+  return cand && cand.content && cand.content.parts && cand.content.parts[0] ? cand.content.parts[0].text : "";
+}
+
+function parseAiJson(rawText) {
+  const cleaned = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+  return JSON.parse(cleaned);
+}
+
+function showError(msg) {
+  const box = document.getElementById("error-box");
+  box.textContent = msg;
+  box.style.display = "block";
+}
+function hideError() {
+  document.getElementById("error-box").style.display = "none";
+}
+
+document.getElementById("analyze-btn").addEventListener("click", async () => {
+  hideError();
+  const need = needSelect.value;
+  const sInfo = document.getElementById("s-info").value.trim();
+  const oInfo = document.getElementById("o-info").value.trim();
+  const draft = document.getElementById("student-draft").value.trim();
+
+  if (!sInfo && !oInfo) { showError("S情報かO情報の少なくとも一方を入力してください。"); return; }
+
+  const btn = document.getElementById("analyze-btn");
+  const loading = document.getElementById("loading-text");
+  btn.disabled = true;
+  loading.style.display = "block";
+  document.getElementById("result-section").style.display = "none";
+
+  try {
+    const prompt = buildPrompt(need, sInfo, oInfo, draft);
+    const rawText = await callGemini(GEMINI_API_KEY, GEMINI_MODEL, prompt);
+
+    let parsed;
+    try {
+      parsed = parseAiJson(rawText);
+    } catch (parseErr) {
+      showError("AIの応答をJSONとして解析できませんでした。以下は受け取った内容です:\n\n" + rawText);
+      return;
+    }
+
+    document.getElementById("student-display").textContent = draft || "（未記入）";
+    document.getElementById("handan-badge").textContent = parsed.handan || "";
+    document.getElementById("ai-genjou").textContent = parsed.genjou || "";
+    const y = parsed.youin || {};
+    document.getElementById("ai-tairyoku").textContent = y.tairyoku || "";
+    document.getElementById("ai-ishiryoku").textContent = y.ishiryoku || "";
+    document.getElementById("ai-chishiki").textContent = y.chishiki || "";
+    document.getElementById("ai-kankyo").textContent = y.kankyo || "";
+    document.getElementById("ai-tsuyomi").textContent = parsed.tsuyomi || "";
+    document.getElementById("ai-risuku").textContent = parsed.risuku || "";
+    document.getElementById("ai-ketsuron").textContent = parsed.ketsuron || "";
+    document.getElementById("ai-feedback").textContent = parsed.feedback || "";
+
+    document.getElementById("result-section").style.display = "block";
+    document.getElementById("result-section").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (err) {
+    showError("エラーが発生しました：" + err.message + "\n\nネットワーク接続を確認するか、時間をおいて再度お試しください。");
+  } finally {
+    btn.disabled = false;
+    loading.style.display = "none";
+  }
+});
+</script>
+</body>
+</html>
